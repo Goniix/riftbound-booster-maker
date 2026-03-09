@@ -1,6 +1,11 @@
 import sqlite3
 import requests
 import re
+import os
+import shutil
+import pathlib
+
+from rich.progress import Progress
     
 class Card:
     rId : str
@@ -26,10 +31,13 @@ class Card:
         
 def getBack(card, cardType : str):
     classType = str(card["classification"]["type"])
+    
     if classType == "Battlefield" or classType == "Legend":
         return "assets/CardBack_black.png"
+    
     if cardType == "TKN":
         return "assets/CardBack_white.png"
+    
     return "assets/CardBack_blue.png"
 
 def getType(cardId: str, card)->str:
@@ -52,49 +60,89 @@ def getType(cardId: str, card)->str:
     
     return "REG"
 
-def isPromoCard(cardId: str, cardName: str) -> bool:
-    return cardId.endswith("-p") or cardId.endswith("-P") or cardId.startswith("ARC") or cardName.endswith("Promo)") or cardName.endswith("(Oversized)")
+# def isPromoCard(cardId: str, cardName: str) -> bool:
+#     return cardId.endswith("-p") or cardId.endswith("-P") or cardId.startswith("ARC") or cardName.endswith("Promo)") or cardName.endswith("(Oversized)")
 
 def updateDatabase():
-    con = sqlite3.connect("cards.db")
-    cursor = con.cursor()
+    with sqlite3.connect("cards.db") as con:
+        cursor = con.cursor()
     
-    try:
-        print("dropping table")
-        cursor.execute("DROP TABLE IF EXISTS cards")
-        print("creating table")
-        cursor.execute("CREATE TABLE cards(id VARCHAR, name VARCHAR, rarity VARCHAR, image VARCHAR, setID CHAR(3), type VARCHAR, back VARCHAR)")
-        print("fetching cards")
-        res = requests.get("https://api.riftcodex.com/cards?size=100")
-        
-        if(res.status_code != 200):
-            print(f"Error detected : status_code is {res.status_code}")
-            return
-        
-        resJson = res.json()
-        
-        if(resJson == None):
-            print("error : couldn't read json")
-        
-        pagecount = resJson["pages"]
-        
-        for i in range(1,pagecount+1):
-            resJson = requests.get(f"https://api.riftcodex.com/cards?page={i}&size=100").json()
+        try:
+            cursor.execute("DROP TABLE IF EXISTS cards")
+            cursor.execute("CREATE TABLE cards(id VARCHAR, name VARCHAR, rarity VARCHAR, image VARCHAR, setID CHAR(3), type VARCHAR, back VARCHAR)")
+            res = requests.get("https://api.riftcodex.com/cards?size=100")
             
-            cardList = resJson["items"]
-            for card in cardList:
-                # print(card)
+            if(res.status_code != 200):
+                print(f"Error detected : status_code is {res.status_code}")
+                return
+            
+            resJson = res.json()
+            
+            if(resJson == None):
+                print("error : couldn't read json")
+            
+            pagecount = resJson["pages"]
+            cardCount = resJson["total"]
+            with Progress() as pbar:
                 
-                dto = Card(card)
-                dto.insert(cursor)
+                task = pbar.add_task("Pulling data from RiftCodex...", total=cardCount)
+            
+                for i in range(1,pagecount+1):
+                    resJson = requests.get(f"https://api.riftcodex.com/cards?page={i}&size=100").json()
+                    
+                    cardList = resJson["items"]
+                    for card in cardList:
+                        dto = Card(card)
+                        dto.insert(cursor)
+                        
+                        pbar.advance(task)
 
-        con.commit()
+            con.commit()
+        finally:
+            pass
+    
+def clearImageCache():
+    cachePath = pathlib.Path("cache")
+    if cachePath.exists():
+        shutil.rmtree("cache")
+    os.mkdir("cache")
+
+def updateImageCache():
+    with sqlite3.connect("cards.db") as con:
+        cursor = con.cursor()
         
-    finally:
-        cursor.close()
-        con.close()
+        cachePath = pathlib.Path("cache")
+        if not cachePath.exists():
+            os.mkdir("cache")
         
+        imageCount = 0
+        
+        with Progress() as pbar:
+            
+            data = cursor.execute("SELECT * FROM cards").fetchall()
+            
+            task = pbar.add_task("Downloading images...", total=len(data))
+            
+            
+            for row in data:
+                cid = str(row[0])
+                art_url = str(row[3])
+                
+                filePath = pathlib.Path(f"cache/{cid}.png")
+                
+                if not filePath.exists():
+                    img_data = requests.get(art_url).content
+
+                    with open(filePath, 'wb') as handler:
+                        handler.write(img_data)
+                        
+                    imageCount+=1
+                pbar.advance(task)
+            
+        print(f"(Downloaded {imageCount} missing images)")
         
 
-updateDatabase()
+if __name__ == "__main__":
+    updateDatabase()
+    updateImageCache()
     

@@ -102,7 +102,8 @@ def genBooster(setID : str):
             print(f"{card[1]} | {card[2]}")
         except:
             print(card)
-    
-genBooster("OGN")
+
+if __name__ == "__main__":
+    genBooster("OGN")
     
     
