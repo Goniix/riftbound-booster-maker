@@ -107,19 +107,22 @@ def clearImageCache():
         shutil.rmtree("cache")
     os.mkdir("cache")
 
-def updateImageCache():
+def updateImageCache(cardList : list[str] = []):
     with sqlite3.connect("cards.db") as con:
         cursor = con.cursor()
         
         cachePath = pathlib.Path("cache")
         if not cachePath.exists():
             os.mkdir("cache")
-        
+            
         imageCount = 0
         
         with Progress() as pbar:
-            
-            data = cursor.execute("SELECT * FROM cards").fetchall()
+            if len(cardList) == 0:
+                data = cursor.execute(f"SELECT * FROM cards").fetchall()
+            else:
+                placeholders = ",".join("?" for _ in cardList)
+                data = cursor.execute(f"SELECT * FROM cards WHERE id IN ({placeholders})", tuple(cardList)).fetchall()
             
             task = pbar.add_task("Downloading images...", total=len(data))
             

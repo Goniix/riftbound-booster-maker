@@ -8,7 +8,7 @@ from rich.progress import Progress
 with sqlite3.connect("cards.db") as con:
     cursor = con.cursor()
 
-def get_cards(cards: list[str], curs: sqlite3.Cursor) -> list[tuple[str, str]]:
+def get_cards_art(cards: list[str], curs: sqlite3.Cursor) -> list[tuple[str, str]]:
     """
     Fetch cards whose id is in `cards`.
     Returns list of tuples: (front_art, back_art) using the same column indexes you used before.
@@ -19,6 +19,7 @@ def get_cards(cards: list[str], curs: sqlite3.Cursor) -> list[tuple[str, str]]:
     cardSet = set(cards)
     # Use parameterized query to avoid SQL injection and quoting issues
     placeholders = ",".join("?" for _ in cardSet)
+        
     query = f"SELECT * FROM cards WHERE id IN ({placeholders})"
     data = curs.execute(query, tuple(cardSet)).fetchall()
 
@@ -49,7 +50,7 @@ def print_page(cards: list[str], template: Template):
         print(f"Warning: received {len(cards)} cards, but CARDS_P_PAGE is {CARDS_P_PAGE}. Trimming.")
         cards = cards[:CARDS_P_PAGE]
 
-    arts = get_cards(cards, cursor)
+    arts = get_cards_art(cards, cursor)
     if not arts:
         print("No arts found for this page, skipping.")
         return
@@ -68,16 +69,20 @@ def print_page(cards: list[str], template: Template):
 
 
 if __name__ == "__main__":
-    gen_db.updateDatabase()
-    gen_db.updateImageCache()
+    
     parser = argparse.ArgumentParser("printcards")
-    parser.add_argument('tts', help="tts list of cards", nargs='*')
+    parser.add_argument('-t','--tts', help="tts list of cards", nargs='*')
+    parser.add_argument('-d','--refreshdb', help="refresh database", nargs='*')
     args = parser.parse_args()
 
     TTS: list[str] = args.tts or []
     TTS = ["-".join(card_id.split("-")[:2]) for card_id in TTS]
     TTS = [s.lower() for s in TTS]
-
+    REFRESH_DATABASE :bool = args.refreshdb
+    
+    if REFRESH_DATABASE:
+        gen_db.updateDatabase()
+    
     CARDS_P_PAGE = 9
     ROW_COUNT = 3
     X_MARGIN = 0.77 / 2
@@ -120,6 +125,8 @@ if __name__ == "__main__":
     if len(TTS) == 0:
         print("No cards provided, exiting.")
     else:
+        gen_db.updateImageCache(list(TTS))
+        
         slice_count = (len(TTS) + CARDS_P_PAGE - 1) // CARDS_P_PAGE
         with Progress() as pbar:
             task = pbar.add_task("Printing template...", total=slice_count)
