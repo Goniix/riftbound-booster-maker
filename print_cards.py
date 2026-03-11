@@ -85,7 +85,7 @@ if __name__ == "__main__":
     REFRESH_DATABASE :bool = args.refreshdb
 
     if REFRESH_DATABASE:
-        gen_db.updateDatabase()
+        gen_db.update_database()
 
     templateElements = [
         {
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     if len(TTS) == 0:
         print("No cards provided, exiting.")
     else:
-        gen_db.updateImageCache(list(TTS))
+        gen_db.update_image_cache(list(TTS))
 
         slice_count = (len(TTS) + CARDS_P_PAGE - 1) // CARDS_P_PAGE
         with Progress() as pbar:
