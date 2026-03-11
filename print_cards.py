@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 import sqlite3
+import pathlib
 from fpdf import Template
 from rich.progress import Progress
 import gen_db
+import pull_art
 
 CARDS_P_PAGE = 9
 ROW_COUNT = 3
@@ -42,7 +44,7 @@ def get_cards_art(cards: list[str]) -> list[tuple[str, str]]:
 
         return res
 
-def print_page(cards: list[str], template: Template):
+def print_page(cards: list[str], template: Template, print_backs : bool):
     """
     Accepts up to CARDS_P_PAGE card ids in `cards`, fetches art and writes them into the template.
     Template is expected to contain elements named card0..card{CARDS_P_PAGE-1}.
@@ -64,12 +66,13 @@ def print_page(cards: list[str], template: Template):
     for i, card in enumerate(arts):
         template[f"card{i}"] = card[0]
 
-    # Backs: reproduce original index math (keeps your intended layout)
-    template.add_page()
-    for i, card in enumerate(arts):
-        sub = i // ROW_COUNT
-        ind = ROW_COUNT - (i % ROW_COUNT) + (sub * ROW_COUNT) - 1
-        template[f"card{ind}"] = card[1]
+    # Backs
+    if print_backs:
+        template.add_page()
+        for i, card in enumerate(arts):
+            sub = i // ROW_COUNT
+            ind = ROW_COUNT - (i % ROW_COUNT) + (sub * ROW_COUNT) - 1
+            template[f"card{ind}"] = card[1]
 
 
 if __name__ == "__main__":
@@ -77,12 +80,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("printcards")
     parser.add_argument('-t','--tts', help="tts list of cards", nargs='*')
     parser.add_argument('-d','--refreshdb', help="refresh database", nargs='*')
+    parser.add_argument('-o','--out', help="outputfile", type=str, default="out/sheet.pdf")
+    parser.add_argument('--back', help="print card backs", action="store_true")
     args = parser.parse_args()
 
     TTS: list[str] = args.tts or []
     TTS = ["-".join(card_id.split("-")[:2]) for card_id in TTS]
     TTS = [s.lower() for s in TTS]
     REFRESH_DATABASE :bool = args.refreshdb
+    OUT : str = args.out
+    PRINT_BACK : bool = args.back
 
     if REFRESH_DATABASE:
         gen_db.update_database()
@@ -123,7 +130,7 @@ if __name__ == "__main__":
     if len(TTS) == 0:
         print("No cards provided, exiting.")
     else:
-        gen_db.update_image_cache(list(TTS))
+        pull_art.update_image_cache(list(TTS))
 
         slice_count = (len(TTS) + CARDS_P_PAGE - 1) // CARDS_P_PAGE
         with Progress() as pbar:
@@ -131,10 +138,14 @@ if __name__ == "__main__":
 
             for sl in range(slice_count):
                 sli = TTS[sl * CARDS_P_PAGE: (sl + 1) * CARDS_P_PAGE]
-                print_page(sli, templ)
+                print_page(sli, templ, PRINT_BACK)
 
                 pbar.advance(task)
 
-            templ.render("./template.pdf")
+            path = pathlib.Path(OUT)
+            if not path.parent.exists():
+                path.parent.mkdir(parents=True, exist_ok=True)
 
-        print("Saved template.pdf")
+            templ.render(OUT)
+
+        print(f"Printed to '{OUT}'")
