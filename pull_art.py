@@ -8,6 +8,7 @@ from rich.progress import Progress
 
 
 def update_image_cache(card_list : list[str]):
+    card_set = set(card_list)
     with sqlite3.connect("cards.db") as con:
         cursor = con.cursor()
 
@@ -18,20 +19,22 @@ def update_image_cache(card_list : list[str]):
         image_count = 0
 
         with Progress() as pbar:
-            if len(card_list) == 0:
+            if len(card_set) == 0:
                 data = cursor.execute("SELECT * FROM cards").fetchall()
             else:
-                placeholders = ",".join("?" for _ in card_list)
+                placeholders = ",".join("?" for _ in card_set)
                 query = f"SELECT * FROM cards WHERE id IN ({placeholders})"
-                data = cursor.execute(query, tuple(card_list)).fetchall()
+                data = cursor.execute(query, tuple(card_set)).fetchall()
 
             task = pbar.add_task("Downloading images...", total=len(data))
 
+            missing = card_set.copy()
 
             for row in data:
                 cid = str(row[0])
                 art_url = str(row[3])
 
+                missing.remove(cid)
                 file_path = pathlib.Path(f"cache/{cid}.png")
 
                 if not file_path.exists():
@@ -43,7 +46,9 @@ def update_image_cache(card_list : list[str]):
                     image_count+=1
                 pbar.advance(task)
 
-        print(f"(Downloaded {image_count} missing images)")
+        print(f"(Downloaded {image_count})")
+        if len(missing) > 0:
+            print(f"WARNING: some cards could not be found : {missing}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("pull_art")

@@ -40,7 +40,12 @@ def get_cards_art(cards: list[str]) -> list[tuple[str, str]]:
         for m in missing:
             print(f"could not find {m}")
 
-        res = [art_dict[cid] for cid in cards]
+        res = []
+        for cid in cards:
+            if cid in art_dict:
+                res.append(art_dict[cid])
+            else:
+                print(f"ERROR: Could not find art for '{cid}'")
 
         return res
 
