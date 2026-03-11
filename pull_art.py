@@ -22,7 +22,8 @@ def update_image_cache(card_list : list[str]):
                 data = cursor.execute("SELECT * FROM cards").fetchall()
             else:
                 placeholders = ",".join("?" for _ in card_list)
-                data = cursor.execute(f"SELECT * FROM cards WHERE id IN ({placeholders})", tuple(card_list)).fetchall()
+                query = f"SELECT * FROM cards WHERE id IN ({placeholders})"
+                data = cursor.execute(query, tuple(card_list)).fetchall()
 
             task = pbar.add_task("Downloading images...", total=len(data))
 

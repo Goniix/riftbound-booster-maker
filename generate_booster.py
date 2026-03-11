@@ -1,3 +1,4 @@
+import argparse
 import sqlite3
 import random
 
@@ -16,43 +17,43 @@ import random
 #signed: 1/720~ (osef)
 
 def get_common_list(set_id: str, cursor: sqlite3.Cursor):
-    res = cursor.execute("SELECT * FROM cards WHERE setID = ? AND rarity = 'Common' AND type = 'REG'", (set_id,))
-    cards = res.fetchall()
+    query = "SELECT * FROM cards WHERE setID = ? AND rarity = 'Common' AND type = 'REG'"
+    cards = cursor.execute(query, (set_id,)).fetchall()
     return cards
 
 def get_uncommon_list(set_id: str, cursor: sqlite3.Cursor):
-    res = cursor.execute("SELECT * FROM cards WHERE setID = ? AND rarity = 'Uncommon'", (set_id,))
-    cards = res.fetchall()
+    query = "SELECT * FROM cards WHERE setID = ? AND rarity = 'Uncommon'"
+    cards = cursor.execute(query, (set_id,)).fetchall()
     return cards
 
 def get_rare_list(set_id: str, cursor: sqlite3.Cursor):
-    res = cursor.execute("SELECT * FROM cards WHERE setID = ? AND rarity = 'Rare'", (set_id,))
-    cards = res.fetchall()
+    query = "SELECT * FROM cards WHERE setID = ? AND rarity = 'Rare'"
+    cards = cursor.execute(query, (set_id,)).fetchall()
     return cards
 
 def get_epic_list(set_id: str, cursor: sqlite3.Cursor):
-    res = cursor.execute("SELECT * FROM cards WHERE setID = ? AND rarity = 'Epic'", (set_id,))
-    cards = res.fetchall()
+    query = "SELECT * FROM cards WHERE setID = ? AND rarity = 'Epic'"
+    cards = cursor.execute(query, (set_id,)).fetchall()
     return cards
 
 def get_alt_list(set_id: str, cursor: sqlite3.Cursor):
-    res = cursor.execute("SELECT * FROM cards WHERE setID = ? AND type = 'ALT'", (set_id,))
-    cards = res.fetchall()
+    query = "SELECT * FROM cards WHERE setID = ? AND type = 'ALT'"
+    cards = cursor.execute(query, (set_id,)).fetchall()
     return cards
 
 def get_over_list(set_id: str, cursor: sqlite3.Cursor):
-    res = cursor.execute("SELECT * FROM cards WHERE setID = ? AND type = 'OVR'", (set_id,))
-    cards = res.fetchall()
+    query = "SELECT * FROM cards WHERE setID = ? AND type = 'OVR'"
+    cards = cursor.execute(query, (set_id,)).fetchall()
     return cards
 
 def get_signed_list(set_id: str, cursor: sqlite3.Cursor):
-    res = cursor.execute("SELECT * FROM cards WHERE setID = ? AND type = 'SGN'", (set_id,))
-    cards = res.fetchall()
+    query = "SELECT * FROM cards WHERE setID = ? AND type = 'SGN'"
+    cards = cursor.execute(query, (set_id,)).fetchall()
     return cards
 
 def get_token_list(set_id: str, cursor: sqlite3.Cursor):
-    res = cursor.execute("SELECT * FROM cards WHERE setID = ?  AND type = 'TKN'", (set_id,))
-    cards = res.fetchall()
+    query = "SELECT * FROM cards WHERE setID = ?  AND type = 'TKN'"
+    cards = cursor.execute(query, (set_id,)).fetchall()
     return cards
 
 def pick_count(cards : list[str], count : int):
@@ -61,19 +62,7 @@ def pick_count(cards : list[str], count : int):
     random.shuffle(cards)
     return cards[:count]
 
-def gen_booster(set_id : str):
-    availableSets = ["OGN", "SFD", "OGS"]
-    con = sqlite3.connect("cards.db")
-    cursor = con.cursor()
-
-    commons = pick_count(get_common_list(set_id, cursor),7)
-    uncommons = pick_count(get_uncommon_list(set_id, cursor),3)
-
-    flex_list = pick_count(get_uncommon_list(set_id, cursor),3) + pick_count(get_rare_list(set_id, cursor),1)
-    random.shuffle(flex_list)
-    flex = flex_list[1:]
-
-
+def gen_rare_slots(set_id :str, cursor : sqlite3.Cursor) -> list[str]:
     epic = random.randrange(0,4) == 0
     alt = random.randrange(0,12) == 0
     over= random.randrange(0,72) == 0
@@ -90,17 +79,42 @@ def gen_booster(set_id : str):
         special += pick_count(get_signed_list(set_id, cursor),1)
 
     rares =  pick_count(get_rare_list(set_id, cursor),2 - len(special)) + special
+    return rares
 
+def get_available_sets(cursor : sqlite3.Cursor):
+    return cursor.execute("SELECT setID DISTINCT FROM cards").fetchall()
 
-    token = pick_count(get_token_list(set_id, cursor),1)
+def gen_booster(set_id : str):
+    with sqlite3.connect("cards.db") as con:
+        cursor = con.cursor()
 
-    booster = commons + uncommons + flex + rares + token
+        available_sets = get_available_sets(cursor)
+        if set_id not in available_sets:
+            print(f"given set id :'{set_id}' not found in available sets {available_sets}")
+            return
 
-    for card in booster:
-        try:
+        commons = pick_count(get_common_list(set_id, cursor),7)
+        uncommons = pick_count(get_uncommon_list(set_id, cursor),3)
+
+        flex_list = pick_count(get_uncommon_list(set_id, cursor),3)
+        flex_list += pick_count(get_rare_list(set_id, cursor),1)
+        random.shuffle(flex_list)
+        flex = flex_list[1:]
+
+        rares = gen_rare_slots(set_id,cursor)
+
+        token = pick_count(get_token_list(set_id, cursor),1)
+
+        booster = commons + uncommons + flex + rares + token
+
+        for card in booster:
             print(f"{card[1]} | {card[2]}")
-        except:
-            print(card)
 
 if __name__ == "__main__":
-    gen_booster("OGN")
+    parser = argparse.ArgumentParser("pull_art")
+    parser.add_argument('-s','--set', help="set of the generated booster", type=str)
+    args = parser.parse_args()
+
+    SET_ID : str = args.set
+
+    gen_booster(SET_ID)

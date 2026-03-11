@@ -3,11 +3,9 @@ import pathlib
 import re
 import os
 import shutil
-
-import pull_art
-
 import requests
 from rich.progress import Progress
+import pull_art
 
 class Card:
     r_id : str
@@ -28,7 +26,9 @@ class Card:
         self.back = str(get_back(card, self.r_type))
 
     def insert(self, cursor : sqlite3.Cursor):
-        cursor.execute("INSERT INTO cards VALUES (?, ?, ?, ?, ?, ?, ?)", (self.r_id, self.name, self.rarity, self.art, self.r_set, self.r_type, self.back))
+        query = "INSERT INTO cards VALUES (?, ?, ?, ?, ?, ?, ?)"
+        params = (self.r_id, self.name, self.rarity, self.art, self.r_set, self.r_type, self.back)
+        cursor.execute(query, params)
 
 def get_back(card, card_type : str):
     class_type = str(card["classification"]["type"])
@@ -86,7 +86,8 @@ def update_database():
                 task = pbar.add_task("Pulling data from RiftCodex...", total=card_count)
 
                 for i in range(1,page_count+1):
-                    res_json = requests.get(f"https://api.riftcodex.com/cards?page={i}&size=100", timeout=2000).json()
+                    url = f"https://api.riftcodex.com/cards?page={i}&size=100"
+                    res_json = requests.get(url, timeout=2000).json()
 
                     card_list = res_json["items"]
                     for card in card_list:
