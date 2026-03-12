@@ -2,7 +2,7 @@ import sqlite3
 import pathlib
 import os
 import argparse
-
+from PIL import Image
 import requests
 from rich.progress import Progress
 
@@ -21,6 +21,7 @@ def update_image_cache(card_list : list[str]):
         with Progress() as pbar:
             if len(card_set) == 0:
                 data = cursor.execute("SELECT * FROM cards").fetchall()
+                card_set = set(str(row[0]) for row in data)
             else:
                 placeholders = ",".join("?" for _ in card_set)
                 query = f"SELECT * FROM cards WHERE id IN ({placeholders})"
@@ -28,25 +29,36 @@ def update_image_cache(card_list : list[str]):
 
             task = pbar.add_task("Downloading images...", total=len(data))
 
-            missing = card_set.copy()
+            downloaded : set[str] = set()
 
             for row in data:
                 cid = str(row[0])
                 art_url = str(row[3])
+                sideways = bool(row[7])
 
-                missing.remove(cid)
+                downloaded.add(cid)
+
                 file_path = pathlib.Path(f"cache/{cid}.png")
 
                 if not file_path.exists():
                     img_data = requests.get(art_url,timeout=2000).content
 
+
                     with open(file_path, 'wb') as handler:
                         handler.write(img_data)
+
+                    if sideways:
+                        img = Image.open(file_path)
+                        rotated = img.rotate(90, expand=True)
+
+                        rotated.save(file_path)
 
                     image_count+=1
                 pbar.advance(task)
 
         print(f"(Downloaded {image_count})")
+
+        missing = card_set.difference(downloaded)
         if len(missing) > 0:
             print(f"WARNING: some cards could not be found : {missing}")
 

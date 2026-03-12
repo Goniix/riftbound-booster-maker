@@ -24,10 +24,12 @@ class Card:
         self.r_set = str(card["set"]["set_id"])
         self.r_type = str(get_type(self.r_id, card))
         self.back = str(get_back(card, self.r_type))
+        self.sideways = str(card["classification"]["type"]) == "Battlefield"
 
     def insert(self, cursor : sqlite3.Cursor):
-        query = "INSERT INTO cards VALUES (?, ?, ?, ?, ?, ?, ?)"
-        params = (self.r_id, self.name, self.rarity, self.art, self.r_set, self.r_type, self.back)
+        query = "INSERT INTO cards VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+
+        params = (self.r_id, self.name, self.rarity, self.art, self.r_set, self.r_type, self.back, self.sideways)
         cursor.execute(query, params)
 
 def get_back(card, card_type : str):
@@ -67,7 +69,7 @@ def update_database():
 
         try:
             cursor.execute("DROP TABLE IF EXISTS cards")
-            cursor.execute("CREATE TABLE cards(id VARCHAR, name VARCHAR, rarity VARCHAR, image VARCHAR, setID CHAR(3), type VARCHAR, back VARCHAR)")
+            cursor.execute("CREATE TABLE cards(id VARCHAR, name VARCHAR, rarity VARCHAR, image VARCHAR, setID CHAR(3), type VARCHAR, back VARCHAR, sideways BOOLEAN)")
             res = requests.get("https://api.riftcodex.com/cards?size=100", timeout=2000)
 
             if res.status_code != 200:
